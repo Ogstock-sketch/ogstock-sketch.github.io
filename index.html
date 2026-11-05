@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="商品盤點表">
+<title>商品盤點表</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+html{color-scheme:light}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+
+/* Layout: one-column mobile tool; sticky header with company tabs + zone chips, list of count rows, summary view. Ballpoint-blue ink on cool paper; company colors mark tabs. */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --fg:#17202e; --muted:#5d6a7e; --line:#dde2ea;
+  --ink:#1f47b8; --ink-soft:#e6ecfb;
+  --orange:#e2701b; --orange-soft:#fdeedf; --sasana:#7a3f8f; --sasana-soft:#f2e8f6;
+  --ok:#1d7a4a; --ok-soft:#e1f3e8; --warn:#a55f00; --warn-soft:#fdf0d9; --bad:#b4232c; --bad-soft:#fbe4e5;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --f-num:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f141c; --surface:#171e29; --fg:#e6ebf2; --muted:#93a0b4; --line:#273142;
+  --ink:#8aa8ff; --ink-soft:#1c2846; --orange:#ff9a4d; --orange-soft:#3a2617; --sasana:#d39be6; --sasana-soft:#33223b;
+  --ok:#5fd194; --ok-soft:#163324; --warn:#f0b35a; --warn-soft:#3a2b12; --bad:#ff8088; --bad-soft:#3d1a1e; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141c; --surface:#171e29; --fg:#e6ebf2; --muted:#93a0b4; --line:#273142;
+  --ink:#8aa8ff; --ink-soft:#1c2846; --orange:#ff9a4d; --orange-soft:#3a2617; --sasana:#d39be6; --sasana-soft:#33223b;
+  --ok:#5fd194; --ok-soft:#163324; --warn:#f0b35a; --warn-soft:#3a2b12; --bad:#ff8088; --bad-soft:#3d1a1e; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:720px;margin:0 auto}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:10px;padding-block:10px 8px}
+.bar h1{font-size:17px;font-weight:900;margin:0;letter-spacing:.02em;flex:1;min-width:0}
+.bar h1 small{display:block;font-size:12px;font-weight:500;color:var(--muted);letter-spacing:0}
+.who{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 12px;font-size:13px;white-space:nowrap}
+.sessrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-bottom:8px}
+.sessrow select{flex:1;min-width:0;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.tag{font-size:12px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap}
+.tag.exp{background:var(--warn-soft);color:var(--warn)}
+.tag.qty{background:var(--ink-soft);color:var(--ink)}
+.linkbtn{border:0;background:none;color:var(--ink);font-weight:700;font-size:13px;padding:6px 4px}
+.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding-bottom:8px}
+.tabs button{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 4px;font-weight:700;font-size:14px}
+.tabs button[aria-pressed="true"][data-co="o"]{background:var(--orange-soft);border-color:var(--orange);color:var(--orange)}
+.tabs button[aria-pressed="true"][data-co="s"]{background:var(--sasana-soft);border-color:var(--sasana);color:var(--sasana)}
+.tabs button[aria-pressed="true"][data-co="sum"]{background:var(--ink-soft);border-color:var(--ink);color:var(--ink)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:13px;white-space:nowrap}
+.chips button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.chips .cnt{font-family:var(--f-num);font-size:11px;opacity:.75;margin-left:4px}
+.tools{display:flex;gap:8px;align-items:center;padding-bottom:10px}
+.tools input{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.toggle{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);white-space:nowrap}
+.progress{height:4px;background:var(--line)}
+.progress i{display:block;height:100%;background:var(--ok);width:0;transition:width .3s}
+
+main{padding-block:12px 120px}
+.note{font-size:13px;color:var(--muted);padding:10px 12px;border:1px dashed var(--line);border-radius:10px;margin-bottom:12px}
+.banner{font-size:13px;padding:10px 12px;border-radius:10px;margin-bottom:12px;background:var(--warn-soft);color:var(--warn)}
+.banner.bad{background:var(--bad-soft);color:var(--bad)}
+.list{display:flex;flex-direction:column;gap:8px}
+.row{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center}
+.row.done{border-left:4px solid var(--ok);padding-left:9px}
+.row.flash{animation:flash 1.2s}
+@keyframes flash{0%{background:var(--ink-soft)}100%{background:var(--surface)}}
+@media (prefers-reduced-motion:reduce){.row.flash{animation:none}.progress i{transition:none}}
+.nm{font-weight:700;font-size:15px;min-width:0}
+.meta{grid-column:1/-1;font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:-2px}
+.meta .by{color:var(--ok);font-weight:500}
+.meta .remote{color:var(--warn);font-weight:700}
+.meta .diff{color:var(--bad);font-weight:700}
+.q{display:flex;align-items:center;gap:6px}
+.q input{width:96px;text-align:right;padding:9px 10px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);font-family:var(--f-num);font-size:18px;font-weight:700;color:var(--ink)}
+.q input:focus{border-color:var(--ink);background:var(--surface);outline:none}
+.unit{font-size:13px;color:var(--muted);width:22px}
+.batches{grid-column:1/-1;display:flex;flex-direction:column;gap:6px}
+.batch{display:grid;grid-template-columns:1fr 96px 22px 28px;gap:6px;align-items:center}
+.batch input{padding:9px 10px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);min-width:0}
+.batch input.d{font-family:var(--f-num);font-size:15px}
+.batch input.n{text-align:right;font-family:var(--f-num);font-size:18px;font-weight:700;color:var(--ink)}
+.batch input:focus{border-color:var(--ink);background:var(--surface);outline:none}
+.batch input.d.err{border-color:var(--bad)}
+.x{border:0;background:none;color:var(--muted);font-size:20px;line-height:1;padding:4px}
+.addb{justify-self:start;border:1px dashed var(--line);background:none;border-radius:8px;padding:5px 10px;font-size:13px;color:var(--ink)}
+.total{font-size:13px;color:var(--muted)}
+.total b{font-family:var(--f-num);color:var(--fg)}
+.hint{border:0;background:var(--warn-soft);color:var(--warn);border-radius:6px;font-size:12px;padding:3px 8px}
+.empty{text-align:center;padding:40px 16px;color:var(--muted)}
+.empty h2{font-size:18px;color:var(--fg);margin:0 0 6px}
+.primary{border:0;background:var(--ink);color:#fff;border-radius:10px;padding:11px 18px;font-weight:700;font-size:15px}
+:root[data-theme="dark"] .primary{color:#0f141c}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .primary{color:#0f141c}}
+.ghost{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 16px;font-weight:700}
+
+/* summary */
+.sumhead{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.stat b{display:block;font-family:var(--f-num);font-size:22px}
+.stat span{font-size:12px;color:var(--muted)}
+.sumsec{margin-bottom:18px}
+.sumsec h3{font-size:14px;margin:0 0 6px;display:flex;justify-content:space-between;align-items:baseline}
+.tblwrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{font-size:12px;color:var(--muted);font-weight:500}
+td.r{text-align:right;font-family:var(--f-num)}
+tr.miss td{color:var(--muted)}
+tr.flag td{background:var(--bad-soft)}
+tr:last-child td{border-bottom:0}
+
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(10,15,25,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:18px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:12px}
+.sheet h2{margin:0;font-size:18px}
+.sheet p{margin:0;font-size:13px;color:var(--muted)}
+.sheet label{font-size:13px;font-weight:700;display:flex;flex-direction:column;gap:4px}
+.sheet input[type=text],.sheet input[type=password],.sheet input[type=date]{padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);font-size:16px}
+.sheet .chk{flex-direction:row;align-items:center;gap:8px;font-weight:500}
+.sheet .btns{display:flex;gap:8px;justify-content:flex-end}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:13px;z-index:30;max-width:90vw}
+
+.meta .ok{color:var(--ok);font-weight:700}
+.meta .err{color:var(--bad);font-weight:700}
+.meta .saving{color:var(--muted);font-style:italic}
+.row.unsaved{border-color:var(--bad)}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cmp div{background:var(--bg);border-radius:10px;padding:10px 12px}
+.cmp b{display:block;font-family:var(--f-num);font-size:24px}
+.cmp span{font-size:12px;color:var(--muted)}
+.sheet .warnline{font-size:14px;color:var(--bad);font-weight:700;margin:0}
+.editbar{display:none;align-items:center;gap:8px;padding-block:8px}
+.editbar .eb-name{flex:1;min-width:0;font-weight:900;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.editbar .eb-name small{display:block;font-size:12px;font-weight:500;color:var(--muted)}
+.editbar button{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 14px;font-weight:700;font-size:15px}
+.editbar button.primary{border-color:var(--ink);background:var(--ink)}
+body.typing .editbar{display:flex}
+body.typing header.top .bar,body.typing header.top .sessrow,body.typing header.top .tabs,body.typing header.top .chips,body.typing header.top .tools{display:none!important}
+body.typing main{padding-bottom:75vh}
+.row{scroll-margin-top:76px}
+.row.active{border-color:var(--ink);box-shadow:0 0 0 2px var(--ink);background:var(--ink-soft)}
+.row.active .nm{color:var(--ink)}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="editbar" id="editbar">
+      <div class="eb-name"><span id="ebName"></span><small id="ebField"></small></div>
+      <button type="button" id="ebPrev" aria-label="上一格">↑</button>
+      <button type="button" id="ebNext" aria-label="下一格">↓</button>
+      <button type="button" class="primary" id="ebDone">完成</button>
+    </div>
+    <div class="bar">
+      <h1>商品盤點表<small id="sub">連線中…</small></h1>
+      <button class="who" id="whoBtn">設定名字</button>
+    </div>
+    <div class="sessrow">
+      <select id="sessSel" aria-label="盤點日"></select>
+      <span class="tag qty" id="modeTag">庫存盤點</span>
+      <button class="linkbtn" id="newBtn">＋新盤點</button>
+    </div>
+    <div class="tabs" id="tabs" role="group" aria-label="公司"></div>
+    <div class="chips" id="chips"></div>
+    <div class="tools" id="tools">
+      <input id="q" type="search" placeholder="搜尋品名" aria-label="搜尋品名">
+      <label class="toggle"><input type="checkbox" id="onlyTodo"> 只看未點</label>
+    </div>
+  </div>
+  <div class="progress"><i id="prog"></i></div>
+</header>
+
+<main class="wrap" id="main">
+  <div class="empty"><h2>正在讀取盤點資料</h2><p>同事填的數字會自動同步到這裡。</p></div>
+</main>
+
+<div id="layer"></div>
+
+<script>
+// ---------- server bridge ----------
+const API = 'https://script.google.com/macros/s/AKfycbzILYK08zmg0hwI951_X1p06l-dLleMvM_AyXDFeGwWmji2he8OUYc02587YwLPu6l3/exec';
+async function rawCall(fn, args, pin) {
+  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn, args, pin }) });
+  if (!r.ok) throw new Error('連線失敗（' + r.status + '）');
+  return r.json();
+}
+async function call(fn, ...args) {
+  let j = await rawCall(fn, args, store.get('stk_pin'));
+  if (!j.ok && j.error === 'PIN') { store.set('stk_pin', ''); await askPin('密碼已變更，請重新輸入'); j = await rawCall(fn, args, store.get('stk_pin')); }
+  if (!j.ok) throw new Error(j.error);
+  return j.data;
+}
+const POLL_MS = 8000;
+
+// ---------- state ----------
+const S = {
+  cat: {}, cos: [], items: {}, sessions: [], sid: null, sess: null, docs: {}, prev: {}, prevSid: null,
+  co: null, zone: null, q: '', onlyTodo: false, name: '', since: 0,
+  drafts: {}, saving: {}, failed: {}, remoteNote: {}
+};
+const $ = s => document.querySelector(s);
+const el = (t, a = {}, ...kids) => { const e = document.createElement(t); for (const [k, v] of Object.entries(a)) { if (k === 'class') e.className = v; else if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else if (v !== false && v != null) e.setAttribute(k, v === true ? '' : v); } for (const c of kids) if (c != null) e.append(c); return e; };
+const store = { get(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+const coKey = co => co === '橙姑娘' ? 'o' : co === 'SASANA' ? 's' : 'x';
+
+function todayStr() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function fmtSess(id) { const [y, m, d] = id.split('-').map(Number); const w = '日一二三四五六'[new Date(y, m - 1, d).getDay()]; return `${m}/${d}（${w}）`; }
+function ago(t) { if (!t) return ''; const s = (Date.now() - t) / 1000; if (s < 60) return '剛剛'; if (s < 3600) return Math.floor(s / 60) + ' 分鐘前'; if (s < 86400) return Math.floor(s / 3600) + ' 小時前'; return Math.floor(s / 86400) + ' 天前'; }
+function toast(msg) { const t = el('div', { class: 'toast', text: msg }); document.body.append(t); setTimeout(() => t.remove(), 2600); }
+function errMsg(e) { return (e && (e.message || e)) + ''; }
+
+// "28.5.3" / "2028.05.03" / "20280503" / "28/5/3" -> "2028/05/03"
+function normDate(s) {
+  s = (s || '').trim(); if (!s) return '';
+  let y, m, d; const digits = s.replace(/\D/g, ''); const parts = s.split(/[^\d]+/).filter(Boolean);
+  if (parts.length === 3) [y, m, d] = parts.map(Number);
+  else if (digits.length === 8) { y = +digits.slice(0, 4); m = +digits.slice(4, 6); d = +digits.slice(6); }
+  else if (digits.length === 6) { y = +digits.slice(0, 2); m = +digits.slice(2, 4); d = +digits.slice(4); }
+  else return null;
+  if (y < 100) y += 2000;
+  if (!(y >= 2024 && y <= 2040 && m >= 1 && m <= 12 && d >= 1 && d <= 31)) return null;
+  return `${y}/${String(m).padStart(2, '0')}/${String(d).padStart(2, '0')}`;
+}
+function totalOf(rec) {
+  if (!rec) return null;
+  if (Array.isArray(rec.batches) && rec.batches.length) { let t = 0, any = false; for (const b of rec.batches) if (typeof b.qty === 'number') { t += b.qty; any = true; } return any ? t : null; }
+  return typeof rec.qty === 'number' ? rec.qty : null;
+}
+function numVal(v) { v = String(v).replace(/[,\s]/g, ''); if (v === '') return null; const n = Number(v); return Number.isFinite(n) && n >= 0 ? Math.round(n) : NaN; }
+const isExpMode = () => !!(S.sess && S.sess.expiry);
+const usesBatches = it => isExpMode() && it.exp;
+function knownExp(it) {
+  const p = S.prev[it.id]; if (p && Array.isArray(p.batches)) { const ds = p.batches.map(b => b.exp).filter(Boolean); if (ds.length) return ds[ds.length - 1]; }
+  return it.lastExp;
+}
+// big swing vs last count: >30% and at least 20 units
+function swing(id, t) {
+  const pv = totalOf(S.prev[id]);
+  if (pv == null || t == null || pv <= 0) return null;
+  const d = t - pv; const r = Math.abs(d) / pv;
+  return (r > 0.3 && Math.abs(d) >= 20) ? { pv, d, pct: Math.round(d / pv * 100) } : null;
+}
+const current = id => S.drafts[id] || S.docs[id] || null;
+
+// ---------- catalog ----------
+function buildCatalog(list) {
+  S.cat = {}; S.cos = []; S.items = {};
+  for (const it of list) {
+    if (!S.cat[it.co]) { S.cat[it.co] = { name: it.co, zones: [] }; S.cos.push(it.co); }
+    let z = S.cat[it.co].zones.find(z => z.n === it.zone);
+    if (!z) { z = { n: it.zone, ids: [] }; S.cat[it.co].zones.push(z); }
+    z.ids.push(it.id); S.items[it.id] = it;
+  }
+  const tabs = $('#tabs'); tabs.replaceChildren();
+  tabs.style.gridTemplateColumns = `repeat(${S.cos.length + 1},1fr)`;
+  for (const co of S.cos) tabs.append(el('button', { 'data-co': coKey(co), 'data-name': co, text: co, onclick: () => pickCo(co) }));
+  tabs.append(el('button', { 'data-co': 'sum', 'data-name': '__sum', text: '總覽', onclick: () => pickCo('__sum') }));
+  if (!S.co) pickCo(S.cos[0], true);
+}
+function pickCo(co, silent) {
+  S.co = co; if (co !== '__sum') S.zone = S.cat[co].zones[0].n;
+  if (!silent) { render(); window.scrollTo(0, 0); }
+}
+
+// ---------- header ----------
+function progress() {
+  const all = Object.keys(S.items); const done = all.filter(i => totalOf(S.docs[i]) != null).length;
+  $('#prog').style.width = (all.length ? done / all.length * 100 : 0) + '%';
+  return { done, all: all.length };
+}
+function headerInfo() {
+  const sel = $('#sessSel'); sel.replaceChildren();
+  if (!S.sessions.length) sel.append(el('option', { text: '尚無盤點' }));
+  for (const s of S.sessions) sel.append(el('option', { value: s.id, selected: s.id === S.sid, text: fmtSess(s.id) + (s.expiry ? ' · 效期盤點' : '') }));
+  const tag = $('#modeTag'); tag.textContent = isExpMode() ? '效期盤點' : '庫存盤點'; tag.className = 'tag ' + (isExpMode() ? 'exp' : 'qty');
+  const p = progress();
+  $('#sub').textContent = S.sid ? `已點 ${p.done} / ${p.all} 項` : '還沒有盤點';
+  $('#whoBtn').textContent = S.name ? '我是 ' + S.name : '設定名字';
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.name === S.co)));
+  const sum = S.co === '__sum'; $('#chips').hidden = sum; $('#tools').hidden = sum;
+  if (!sum && S.cat[S.co]) {
+    const chips = $('#chips'); chips.replaceChildren();
+    for (const z of S.cat[S.co].zones) {
+      const done = z.ids.filter(i => totalOf(S.docs[i]) != null).length;
+      chips.append(el('button', { 'aria-pressed': String(S.zone === z.n), onclick: () => { S.zone = z.n; render(); } }, z.n, el('span', { class: 'cnt', text: done + '/' + z.ids.length })));
+    }
+  }
+}
+
+// ---------- list ----------
+function typing() { const a = document.activeElement; return !!(a && a.closest && a.closest('#main') && a.tagName === 'INPUT'); }
+function softRender() { if (typing() || $('#layer').childElementCount) headerInfo(); else render(); }
+function render() {
+  headerInfo();
+  const main = $('#main');
+  if (!S.sid) {
+    main.replaceChildren(el('div', { class: 'empty' }, el('h2', { text: '還沒有開始盤點' }), el('p', { text: '由第一位同事按下面的按鈕開一張盤點表，其他人選同一天就能一起填。' }), el('p', {}, el('button', { class: 'primary', onclick: openNew, text: '開始今天的盤點' }))));
+    return;
+  }
+  if (S.co === '__sum') return renderSummary();
+  const zone = S.cat[S.co].zones.find(z => z.n === S.zone) || S.cat[S.co].zones[0]; S.zone = zone.n;
+  const list = el('div', { class: 'list' }); const q = S.q.trim().toLowerCase(); let shown = 0;
+  for (const id of zone.ids) {
+    const it = S.items[id];
+    if (q && !it.name.toLowerCase().includes(q)) continue;
+    if (S.onlyTodo && totalOf(S.docs[id]) != null) continue;
+    list.append(buildRow(it)); shown++;
+  }
+  const kids = [];
+  if (!S.name) kids.push(el('div', { class: 'banner' }, '先按右上角「設定名字」，大家才看得出每一格是誰點的。'));
+  if (S.co === 'SASANA' && zone === S.cat[S.co].zones[0]) kids.push(el('div', { class: 'note', text: 'SASANA 倉庫裡的橙姑娘貨（夜王、金虎、肽孅然、毛巾、充電線…）請到「橙姑娘 › 倉庫」填，避免重複計算。' }));
+  if (isExpMode() && zone.ids.some(i => S.items[i].exp)) kids.push(el('div', { class: 'note', text: '本次是效期盤點：商品要填效期和數量。同一商品有兩個效期，按「＋另一批效期」分開填。' }));
+  kids.push(shown ? list : el('div', { class: 'empty' }, el('p', { text: S.onlyTodo ? '這一區都點完了' : '找不到符合的品項' })));
+  main.replaceChildren(...kids);
+}
+
+function metaLine(it) {
+  const doc = S.docs[it.id]; const prevT = totalOf(S.prev[it.id]);
+  const m = el('div', { class: 'meta' });
+  m.append(el('span', { text: it.unit + (it.note ? '（' + it.note + '）' : '') }));
+  if (prevT != null) m.append(el('span', { class: 'num', text: '上次 ' + prevT }));
+  if (S.saving[it.id]) m.append(el('span', { class: 'saving', text: '儲存中…' }));
+  else if (S.failed[it.id]) m.append(el('span', { class: 'err', text: '沒存到：' + S.failed[it.id] + '（離開這格會再試）' }));
+  else if (doc && totalOf(doc) != null) m.append(el('span', { class: 'by', text: (doc.who || '同事') + ' · ' + ago(doc.at) }));
+  const sw = doc ? swing(it.id, totalOf(doc)) : null;
+  if (sw) m.append(el('span', { class: doc.ok ? 'ok' : 'diff', text: (doc.ok ? '差異已確認 ' : '和上次差 ') + (sw.d > 0 ? '+' : '') + sw.d }));
+  if (S.remoteNote[it.id]) m.append(el('span', { class: 'remote', text: S.remoteNote[it.id] }));
+  return m;
+}
+
+function buildRow(it) {
+  const cur = current(it.id); const done = totalOf(S.docs[it.id]) != null;
+  const row = el('div', { class: 'row' + (done ? ' done' : '') + (S.failed[it.id] ? ' unsaved' : ''), 'data-id': it.id });
+  row.append(el('div', { class: 'nm', text: it.name }));
+  if (!usesBatches(it)) {
+    const inp = el('input', { class: 'single', id: 'q_' + it.id, inputmode: 'numeric', enterkeyhint: 'next', autocomplete: 'off', 'aria-label': it.name + ' 數量', value: cur && typeof cur.qty === 'number' ? cur.qty : '' });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); focusNext(inp); } });
+    row.append(el('div', { class: 'q' }, inp));
+    row.append(metaLine(it));
+  } else {
+    row.append(el('div', { class: 'total' }, '合計 ', el('b', { text: totalOf(cur) ?? '—' })));
+    row.append(metaLine(it));
+    const batches = cur && Array.isArray(cur.batches) && cur.batches.length ? cur.batches.map(b => ({ ...b })) : [{ exp: '', qty: null }];
+    const box = el('div', { class: 'batches' });
+    batches.forEach((b, i) => {
+      const d = el('input', { class: 'd', id: `d_${it.id}_${i}`, inputmode: 'numeric', placeholder: '效期 例 2028.05.03', autocomplete: 'off', 'aria-label': it.name + ' 效期', value: b.exp || '' });
+      const n = el('input', { class: 'n', id: `n_${it.id}_${i}`, inputmode: 'numeric', placeholder: '數量', autocomplete: 'off', 'aria-label': it.name + ' 數量', value: typeof b.qty === 'number' ? b.qty : '' });
+      d.addEventListener('blur', () => { if (!d.value.trim()) { d.classList.remove('err'); return; } const v = normDate(d.value); if (v === null) { d.classList.add('err'); toast('效期看不懂，請用 2028.05.03 這種寫法'); return; } d.classList.remove('err'); d.value = v; });
+      n.addEventListener('input', () => { const t = readRow(it.id); row.querySelector('.total b').textContent = (t && totalOf(t)) ?? '—'; });
+      [d, n].forEach(x => x.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); focusNext(x); } }));
+      const x = el('button', { class: 'x', type: 'button', 'aria-label': '刪除這一批', text: '×', hidden: batches.length < 2, onclick: () => { S.drafts[it.id] = readRow(it.id); S.drafts[it.id].batches.splice(i, 1); rebuild(it.id); commitRow(it.id); } });
+      box.append(el('div', { class: 'batch' }, d, n, el('span', { class: 'unit', text: it.unit }), x));
+    });
+    const actions = el('div', { class: 'q' });
+    const ke = knownExp(it);
+    if (ke && !batches[0].exp) actions.append(el('button', { class: 'hint', type: 'button', text: '沿用上次效期 ' + ke, onclick: () => { const d = document.getElementById(`d_${it.id}_0`); d.value = ke; const n = document.getElementById(`n_${it.id}_0`); n && n.focus(); } }));
+    actions.append(el('button', { class: 'addb', type: 'button', text: '＋另一批效期', onclick: () => { const r = readRow(it.id) || { batches: [] }; r.batches.push({ exp: '', qty: null }); S.drafts[it.id] = r; rebuild(it.id); const d = document.getElementById(`d_${it.id}_${r.batches.length - 1}`); d && d.focus(); } }));
+    box.append(actions);
+    row.append(box);
+  }
+  // save when the finger leaves this item (not when moving between its own boxes)
+  row.addEventListener('focusout', () => setTimeout(() => { if (!row.isConnected) return; if (!row.contains(document.activeElement) && !$('#layer').childElementCount) commitRow(it.id); }, 0));
+  return row;
+}
+
+// read what is on screen for one item
+function readRow(id) {
+  const row = document.querySelector('#main [data-id="' + id + '"]'); if (!row) return null;
+  const single = row.querySelector('input.single');
+  if (single) { const n = numVal(single.value); return { qty: Number.isNaN(n) ? NaN : n }; }
+  const batches = [...row.querySelectorAll('.batch')].map(b => {
+    const dv = b.querySelector('.d').value; const nd = normDate(dv); const n = numVal(b.querySelector('.n').value);
+    return { exp: nd === null ? '!' + dv : nd, qty: Number.isNaN(n) ? NaN : n };
+  });
+  return { batches };
+}
+function sig(rec) {
+  if (!rec) return 'Q:';
+  const bs = Array.isArray(rec.batches) ? rec.batches.filter(b => b.exp || b.qty != null) : [];
+  if (bs.length) return 'B:' + bs.map(b => (b.exp || '') + '|' + (b.qty ?? '')).join(',');
+  return 'Q:' + (typeof rec.qty === 'number' ? rec.qty : '');
+}
+function sameAsSaved(id, r) { return !r || sig(r) === sig(S.docs[id]); }
+
+function commitRow(id) {
+  const r = readRow(id); if (!r) return;
+  const it = S.items[id];
+  if (r.batches) {
+    if (r.batches.some(b => Number.isNaN(b.qty))) return toast(it.name + '：數量只能填數字');
+    if (r.batches.some(b => b.exp && b.exp.startsWith('!'))) return toast(it.name + '：效期看不懂，請用 2028.05.03 這種寫法');
+    if (r.batches.some(b => b.qty != null && !b.exp)) return toast(it.name + '：有數量但沒填效期');
+  } else if (Number.isNaN(r.qty)) return toast(it.name + '：數量只能填數字');
+  if (sameAsSaved(id, r) && !S.failed[id]) { delete S.drafts[id]; return; }
+  S.drafts[id] = r;
+  const t = totalOf(r); const sw = swing(id, t);
+  if (sw) return confirmSwing(id, r, t, sw);
+  save(id, r, false);
+}
+
+function confirmSwing(id, r, t, sw) {
+  const it = S.items[id];
+  const recount = () => { closeLayer(); rebuild(id); const row = document.querySelector('#main [data-id="' + id + '"]'); const f = row && row.querySelector('input.single, input.n'); f && f.focus(); f && f.select && f.select(); };
+  const okBtn = el('button', { class: 'primary', text: '數量正確，送出', onclick: () => { closeLayer(); save(id, r, true); } });
+  $('#layer').replaceChildren(el('div', { class: 'scrim' },
+    el('div', { class: 'sheet', role: 'dialog', 'aria-label': '確認數量' },
+      el('h2', { text: it.name }),
+      el('p', { class: 'warnline', text: `和上次差 ${sw.d > 0 ? '+' : ''}${sw.d} ${it.unit}（${sw.pct > 0 ? '+' : ''}${sw.pct}%）` }),
+      el('div', { class: 'cmp' }, el('div', {}, el('b', { text: t }), el('span', { text: '這次填的' })), el('div', {}, el('b', { text: sw.pv }), el('span', { text: '上次盤點' }))),
+      el('p', { text: '差異比較大，請再點一次。確認沒錯就按送出，數量會照常存進去，總覽會標示「差異已確認」。' }),
+      el('div', { class: 'btns' }, el('button', { class: 'ghost', text: '我再點一次', onclick: recount }), okBtn))));
+  setTimeout(() => okBtn.focus(), 50);
+}
+
+async function save(id, r, ok) {
+  if (!S.sid) return;
+  const payload = r.batches ? { batches: r.batches.filter(b => b.exp || b.qty != null), who: S.name, ok } : { qty: r.qty, who: S.name, ok };
+  S.saving[id] = true; delete S.failed[id]; delete S.remoteNote[id]; refreshMeta(id);
+  const sid = S.sid;
+  try {
+    const rec = await call('api_save', sid, id, payload);
+    if (S.sid !== sid) return;
+    S.docs[id] = rec; delete S.drafts[id];
+  } catch (e) { S.failed[id] = errMsg(e).slice(0, 40); toast(S.items[id].name + ' 沒存到，請檢查網路'); }
+  finally { delete S.saving[id]; headerInfo(); const row = document.querySelector('#main [data-id="' + id + '"]'); if (row && !row.contains(document.activeElement)) rebuild(id); else refreshMeta(id); }
+}
+
+function focusNext(inp) { const all = [...document.querySelectorAll('#main input')]; const i = all.indexOf(inp); if (i >= 0 && all[i + 1]) all[i + 1].focus(); else inp.blur(); }
+function rebuild(id) { const old = document.querySelector('#main [data-id="' + id + '"]'); if (!old) return null; const n = buildRow(S.items[id]); old.replaceWith(n); return n; }
+function refreshMeta(id) { const row = document.querySelector('#main [data-id="' + id + '"]'); if (!row) return; const m = row.querySelector('.meta'); m && m.replaceWith(metaLine(S.items[id])); }
+
+// ---------- summary ----------
+function renderSummary() {
+  const main = $('#main'); const p = progress(); let missing = 0, flagged = 0;
+  for (const id in S.items) { const d = S.docs[id]; const t = totalOf(d); if (t == null) missing++; else if (swing(id, t) && !d.ok) flagged++; }
+  const kids = [el('div', { class: 'sumhead' },
+    el('div', { class: 'stat' }, el('b', { text: p.done }), el('span', { text: '已點品項' })),
+    el('div', { class: 'stat' }, el('b', { text: missing }), el('span', { text: '還沒點' })),
+    el('div', { class: 'stat' }, el('b', { text: flagged }), el('span', { text: '差很多未確認' }))),
+    el('div', { class: 'note', text: '紅底是和上次差 30% 以上、還沒按過確認的品項。' })];
+  for (const co of S.cos) for (const z of S.cat[co].zones) {
+    const tb = el('tbody');
+    for (const id of z.ids) {
+      const it = S.items[id]; const d = S.docs[id]; const t = totalOf(d); const pv = totalOf(S.prev[id]); const sw = d ? swing(id, t) : null;
+      const exps = d && Array.isArray(d.batches) ? d.batches.filter(b => b.exp).map(b => b.exp.slice(2) + (d.batches.length > 1 ? `×${b.qty ?? '?'}` : '')).join('、') : '';
+      tb.append(el('tr', { class: t == null ? 'miss' : (sw && !d.ok ? 'flag' : '') },
+        el('td', { text: it.name }), el('td', { class: 'r', text: t ?? '—' }), el('td', { class: 'r', text: pv ?? '' }),
+        ...(isExpMode() ? [el('td', { class: 'num', text: exps })] : []), el('td', { text: d && t != null ? (d.who || '') + (sw && d.ok ? ' ✓' : '') : '' })));
+    }
+    const done = z.ids.filter(i => totalOf(S.docs[i]) != null).length;
+    kids.push(el('section', { class: 'sumsec' }, el('h3', {}, `${co} › ${z.n}`, el('span', { class: 'num', style: 'font-size:12px;color:var(--muted)', text: done + '/' + z.ids.length })),
+      el('div', { class: 'tblwrap' }, el('table', {}, el('thead', {}, el('tr', {}, el('th', { text: '品名' }), el('th', { text: '本次' }), el('th', { text: '上次' }), ...(isExpMode() ? [el('th', { text: '效期' })] : []), el('th', { text: '盤點人' }))), tb))));
+  }
+  main.replaceChildren(...kids);
+}
+
+// ---------- dialogs ----------
+function closeLayer() { $('#layer').replaceChildren(); }
+let pinPromise = null;
+function askPin(msg) {
+  if (pinPromise) return pinPromise;
+  pinPromise = new Promise(resolve => {
+    const inp = el('input', { type: 'password', id: 'pinIn', inputmode: 'numeric', autocomplete: 'off', placeholder: '請輸入盤點密碼' });
+    const err = el('p', { class: 'warnline', text: msg || '' });
+    const btn = el('button', { class: 'primary', text: '確定' });
+    const ok = async () => {
+      const v = inp.value.trim(); if (!v) return;
+      btn.disabled = true; btn.textContent = '確認中…';
+      try {
+        const j = await rawCall('check', [], v);
+        if (j.ok) { store.set('stk_pin', v); closeLayer(); pinPromise = null; resolve(); return; }
+        err.textContent = j.error === 'PIN' ? '密碼不對，請再試一次' : j.error;
+      } catch (e) { err.textContent = '連不上，請檢查網路後再試'; }
+      btn.disabled = false; btn.textContent = '確定';
+    };
+    btn.addEventListener('click', ok);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); });
+    $('#layer').replaceChildren(el('div', { class: 'scrim' },
+      el('div', { class: 'sheet', role: 'dialog', 'aria-label': '輸入盤點密碼' }, el('h2', { text: '輸入盤點密碼' }),
+        el('p', { text: '第一次使用需要輸入，之後這支手機會記住。' }), el('label', {}, '密碼', inp), err,
+        el('div', { class: 'btns' }, btn))));
+    setTimeout(() => inp.focus(), 50);
+  });
+  return pinPromise;
+}
+function openName() {
+  const inp = el('input', { type: 'text', id: 'nameIn', value: S.name, placeholder: '例：王二', autocomplete: 'off' });
+  const ok = () => { const v = inp.value.trim(); if (!v) return; S.name = v; store.set('stk_name', v); closeLayer(); render(); };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); });
+  $('#layer').replaceChildren(el('div', { class: 'scrim', onclick: e => { if (e.target.classList.contains('scrim') && S.name) closeLayer(); } },
+    el('div', { class: 'sheet', role: 'dialog', 'aria-label': '設定名字' }, el('h2', { text: '你是哪位同事？' }), el('p', { text: '名字只存在這支手機上，會標在你填的每一格旁邊。' }),
+      el('label', {}, '名字', inp), el('div', { class: 'btns' }, el('button', { class: 'primary', text: '確定', onclick: ok })))));
+  setTimeout(() => inp.focus(), 50);
+}
+function firstOfMonth(date) { const m = date.slice(0, 7); return !S.sessions.some(s => s.id.startsWith(m) && s.id < date); }
+function openNew() {
+  const date = el('input', { type: 'date', id: 'newDate', value: todayStr() });
+  const exp = el('input', { type: 'checkbox', id: 'newExp' }); exp.checked = firstOfMonth(date.value);
+  const why = el('p', {});
+  const upd = () => { why.textContent = firstOfMonth(date.value) ? '這是本月第一次盤點，預設為效期盤點（要填效期）。' : '本月已經盤點過，預設只點數量。'; };
+  date.addEventListener('change', () => { exp.checked = firstOfMonth(date.value); upd(); }); upd();
+  const btn = el('button', { class: 'primary', text: '開始' });
+  btn.addEventListener('click', async () => {
+    const id = date.value; if (!id) return; btn.disabled = true; btn.textContent = '建立中…';
+    try { S.sessions = await call('api_createSession', id, exp.checked, S.name); closeLayer(); await switchSession(id); toast('已開始 ' + fmtSess(id) + ' 的盤點'); }
+    catch (e) { btn.disabled = false; btn.textContent = '開始'; toast('開不了新盤點：' + errMsg(e)); }
+  });
+  $('#layer').replaceChildren(el('div', { class: 'scrim', onclick: e => { if (e.target.classList.contains('scrim')) closeLayer(); } },
+    el('div', { class: 'sheet', role: 'dialog', 'aria-label': '開始新盤點' }, el('h2', { text: '開始新的盤點' }),
+      el('p', { text: '固定週五盤點；遇國定假日就選假期前一天。同一天只要開一次，其他同事選同一天就會一起填。' }),
+      el('label', {}, '盤點日', date), el('label', { class: 'chk' }, exp, '效期盤點（每月第一次）'), why,
+      el('div', { class: 'btns' }, el('button', { class: 'ghost', text: '取消', onclick: closeLayer }), btn))));
+}
+
+// ---------- data ----------
+async function switchSession(id) {
+  S.sid = id; S.sess = S.sessions.find(s => s.id === id) || { id }; S.docs = {}; S.drafts = {}; S.prev = {}; S.failed = {}; S.remoteNote = {};
+  store.set('stk_sid', id);
+  $('#main').replaceChildren(el('div', { class: 'empty' }, el('p', { text: '讀取 ' + fmtSess(id) + ' 的盤點…' })));
+  try {
+    const r = await call('api_load', id);
+    if (S.sid !== id) return;
+    S.sessions = r.sessions; S.sess = S.sessions.find(s => s.id === id) || S.sess;
+    S.docs = r.items; S.prev = r.prev; S.prevSid = r.prevSid; S.since = r.now;
+  } catch (e) { toast('讀不到盤點資料：' + errMsg(e)); }
+  render();
+}
+
+let polling = false;
+async function poll() {
+  if (polling || document.hidden || !S.sid) return;
+  polling = true; const sid = S.sid;
+  try {
+    const r = await call('api_poll', sid, S.since);
+    if (S.sid !== sid) return;
+    S.since = r.now;
+    const prevExp = isExpMode();
+    S.sessions = r.sessions; S.sess = S.sessions.find(s => s.id === sid) || S.sess;
+    const changed = Object.keys(r.items);
+    for (const id of changed) {
+      const rec = r.items[id]; const mine = S.docs[id] && S.docs[id].at === rec.at;
+      S.docs[id] = rec;
+      if (mine || !S.items[id]) continue;
+      const row = document.querySelector('#main [data-id="' + id + '"]');
+      if (row && row.contains(document.activeElement)) { S.remoteNote[id] = (rec.who || '同事') + ' 也改了這格：' + (totalOf(rec) ?? '空白'); refreshMeta(id); }
+      else if (row && !S.drafts[id]) { const n = rebuild(id); n && n.classList.add('flash'); }
+    }
+    if (prevExp !== isExpMode()) softRender(); else if (S.co === '__sum' && changed.length) renderSummary(); else headerInfo();
+  } catch (e) { $('#sub').textContent = '連線不穩，數字可能還沒更新'; }
+  finally { polling = false; }
+}
+
+// ---------- typing mode: keep the field being filled visible above the keyboard ----------
+function fieldLabel(inp) {
+  if (inp.classList.contains('d')) return '效期';
+  const b = inp.closest('.batch');
+  if (b) { const bs = [...inp.closest('.batches').querySelectorAll('.batch')]; return bs.length > 1 ? '第 ' + (bs.indexOf(b) + 1) + ' 批 數量' : '數量'; }
+  return '數量';
+}
+let scrollTimers = [];
+function keepVisible(row) {
+  scrollTimers.forEach(clearTimeout);
+  scrollTimers = [60, 350, 700].map(ms => setTimeout(() => { if (row.isConnected && row.classList.contains('active')) row.scrollIntoView({ block: 'start', behavior: 'auto' }); }, ms));
+}
+function onFocusIn(e) {
+  const inp = e.target; if (!(inp instanceof HTMLInputElement) || !inp.closest('#main')) return;
+  const row = inp.closest('.row'); if (!row) return;
+  document.querySelectorAll('#main .row.active').forEach(r => { if (r !== row) r.classList.remove('active'); });
+  const was = row.classList.contains('active');
+  row.classList.add('active'); document.body.classList.add('typing');
+  const it = S.items[row.dataset.id];
+  $('#ebName').textContent = it ? it.name : '';
+  $('#ebField').textContent = fieldLabel(inp) + (it ? ' · ' + it.unit : '');
+  if (!was) keepVisible(row);
+}
+function onFocusOut() {
+  setTimeout(() => {
+    const a = document.activeElement;
+    if (a && a.closest && ((a.closest('#main') && a.tagName === 'INPUT') || a.closest('#editbar'))) return;
+    document.body.classList.remove('typing');
+    document.querySelectorAll('#main .row.active').forEach(r => r.classList.remove('active'));
+  }, 150);
+}
+function stepField(dir) { const all = [...document.querySelectorAll('#main input')]; const i = all.indexOf(document.activeElement); const n = all[i + dir]; if (n) n.focus(); }
+
+async function boot() {
+  S.name = store.get('stk_name');
+  $('#q').addEventListener('input', e => { S.q = e.target.value; render(); });
+  $('#onlyTodo').addEventListener('change', e => { S.onlyTodo = e.target.checked; render(); });
+  $('#whoBtn').addEventListener('click', openName);
+  $('#newBtn').addEventListener('click', openNew);
+  $('#sessSel').addEventListener('change', e => { if (e.target.value) switchSession(e.target.value); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+  document.addEventListener('focusin', onFocusIn);
+  document.addEventListener('focusout', onFocusOut);
+  ['ebPrev', 'ebNext', 'ebDone'].forEach(id => { const b = $('#' + id); b.addEventListener('pointerdown', e => e.preventDefault()); b.addEventListener('mousedown', e => e.preventDefault()); });
+  $('#ebPrev').addEventListener('click', () => stepField(-1));
+  $('#ebNext').addEventListener('click', () => stepField(1));
+  $('#ebDone').addEventListener('click', () => { const a = document.activeElement; if (a && a.blur) a.blur(); });
+  try {
+    if (!store.get('stk_pin')) await askPin();
+    const r = await call('api_init');
+    buildCatalog(r.catalog); S.sessions = r.sessions;
+    const saved = store.get('stk_sid'); const t = todayStr();
+    const pick = S.sessions.find(s => s.id === t) || S.sessions.find(s => s.id === saved) || S.sessions[0];
+    if (pick) await switchSession(pick.id); else render();
+  } catch (e) {
+    $('#sub').textContent = '連線失敗';
+    $('#main').replaceChildren(el('div', { class: 'empty' }, el('h2', { text: '打不開盤點表' }), el('p', { text: errMsg(e) }), el('p', {}, el('button', { class: 'primary', text: '重新整理', onclick: () => location.reload() }))));
+    return;
+  }
+  setInterval(poll, POLL_MS);
+  setInterval(() => { if (!typing() && S.co !== '__sum') document.querySelectorAll('#main [data-id]').forEach(r => refreshMeta(r.dataset.id)); }, 60000);
+  if (!S.name) openName();
+}
+boot();
+</script>
+
+</body>
+</html>
