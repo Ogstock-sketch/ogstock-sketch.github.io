@@ -80,6 +80,7 @@ main{padding-block:12px 120px}
 @media (prefers-reduced-motion:reduce){.row.flash{animation:none}.progress i{transition:none}}
 .nm{font-weight:700;font-size:15px;min-width:0}
 .nm .ex{display:inline-block;margin-left:6px;font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap}
+.batch input.d[readonly]{background:transparent;border-color:transparent;color:var(--fg);font-weight:700;padding-left:0}
 .meta{grid-column:1/-1;font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:-2px}
 .meta .by{color:var(--ok);font-weight:500}
 .meta .remote{color:var(--warn);font-weight:700}
@@ -242,7 +243,9 @@ function totalOf(rec) {
 }
 function numVal(v) { v = String(v).replace(/[,\s]/g, ''); if (v === '') return null; const n = Number(v); return Number.isFinite(n) && n >= 0 ? Math.round(n) : NaN; }
 const isExpMode = () => !!(S.sess && S.sess.expiry);
-const usesBatches = it => isExpMode() && it.exp;
+// 一般盤點時，上次有兩個以上效期的商品，要分批填數量
+const multiExp = it => !isExpMode() && it.exp && Array.isArray(it.seenExps) && it.seenExps.length > 1;
+const usesBatches = it => (isExpMode() && it.exp) || multiExp(it);
 function knownExp(it) {
   const p = S.prev[it.id]; if (p && Array.isArray(p.batches)) { const ds = p.batches.map(b => b.exp).filter(Boolean); if (ds.length) return ds[ds.length - 1]; }
   return it.lastExp;
@@ -323,6 +326,7 @@ function render() {
   const kids = [];
   if (!S.name) kids.push(el('div', { class: 'banner' }, '先按右上角「設定名字」，大家才看得出每一格是誰點的。'));
   if (S.co === 'SASANA' && zone === S.cat[S.co].zones[0]) kids.push(el('div', { class: 'note', text: 'SASANA 倉庫裡的橙姑娘貨（夜王、金虎、肽孅然、毛巾、充電線…）請到「橙姑娘 › 倉庫」填，避免重複計算。' }));
+  if (!isExpMode() && zone.ids.some(i => multiExp(S.items[i]))) kids.push(el('div', { class: 'note', text: '有兩個以上效期的商品，請照效期分開填數量（沒有了就填 0）。' }));
   if (isExpMode() && zone.ids.some(i => S.items[i].exp)) kids.push(el('div', { class: 'note', text: '本次是效期盤點：商品要填效期和數量。同一商品有兩個效期，按「＋另一批效期」分開填。' }));
   kids.push(shown ? list : el('div', { class: 'empty' }, el('p', { text: S.onlyTodo ? '這一區都點完了' : '找不到符合的品項' })));
   main.replaceChildren(...kids);
@@ -346,7 +350,7 @@ function buildRow(it) {
   const cur = current(it.id); const done = totalOf(S.docs[it.id]) != null;
   const row = el('div', { class: 'row' + (done ? ' done' : '') + (S.failed[it.id] ? ' unsaved' : ''), 'data-id': it.id });
   const nm = el('div', { class: 'nm', text: it.name });
-  if (it.exp && Array.isArray(it.seenExps) && it.seenExps.length) nm.append(el('span', { class: 'ex', text: '效期 ' + it.seenExps.join('、') }));
+  if (it.exp && Array.isArray(it.seenExps) && it.seenExps.length && !multiExp(it)) nm.append(el('span', { class: 'ex', text: '效期 ' + it.seenExps.join('、') }));
   row.append(nm);
   if (!usesBatches(it)) {
     const inp = el('input', { class: 'single', id: 'q_' + it.id, inputmode: 'numeric', enterkeyhint: 'next', autocomplete: 'off', 'aria-label': it.name + ' 數量', value: cur && typeof cur.qty === 'number' ? cur.qty : '' });
@@ -356,20 +360,22 @@ function buildRow(it) {
   } else {
     row.append(el('div', { class: 'total' }, '合計 ', el('b', { text: totalOf(cur) ?? '—' })));
     row.append(metaLine(it));
-    const batches = cur && Array.isArray(cur.batches) && cur.batches.length ? cur.batches.map(b => ({ ...b })) : [{ exp: '', qty: null }];
+    const multi = multiExp(it);
+    const batches = cur && Array.isArray(cur.batches) && cur.batches.length ? cur.batches.map(b => ({ ...b })) : multi ? it.seenExps.map(e => ({ exp: e, qty: null })) : [{ exp: '', qty: null }];
+    const fixed = b => multi && b.exp && it.seenExps.includes(b.exp);
     const box = el('div', { class: 'batches' });
     batches.forEach((b, i) => {
-      const d = el('input', { class: 'd', id: `d_${it.id}_${i}`, inputmode: 'numeric', placeholder: '效期 例 2028.05.03', autocomplete: 'off', 'aria-label': it.name + ' 效期', value: b.exp || '' });
+      const d = el('input', { class: 'd', id: `d_${it.id}_${i}`, inputmode: 'numeric', placeholder: '效期 例 2028.05.03', autocomplete: 'off', 'aria-label': it.name + ' 效期', value: b.exp || '', readonly: fixed(b), tabindex: fixed(b) ? '-1' : null });
       const n = el('input', { class: 'n', id: `n_${it.id}_${i}`, inputmode: 'numeric', placeholder: '數量', autocomplete: 'off', 'aria-label': it.name + ' 數量', value: typeof b.qty === 'number' ? b.qty : '' });
       d.addEventListener('blur', () => { if (!d.value.trim()) { d.classList.remove('err'); return; } const v = normDate(d.value); if (v === null) { d.classList.add('err'); toast('效期看不懂，請用 2028.05.03 這種寫法'); return; } d.classList.remove('err'); d.value = v; });
       n.addEventListener('input', () => { const t = readRow(it.id); row.querySelector('.total b').textContent = (t && totalOf(t)) ?? '—'; });
       [d, n].forEach(x => x.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); focusNext(x); } }));
-      const x = el('button', { class: 'x', type: 'button', 'aria-label': '刪除這一批', text: '×', hidden: batches.length < 2, onclick: () => { S.drafts[it.id] = readRow(it.id); S.drafts[it.id].batches.splice(i, 1); rebuild(it.id); commitRow(it.id); } });
+      const x = el('button', { class: 'x', type: 'button', 'aria-label': '刪除這一批', text: '×', hidden: batches.length < 2 || fixed(b), onclick: () => { S.drafts[it.id] = readRow(it.id); S.drafts[it.id].batches.splice(i, 1); rebuild(it.id); commitRow(it.id); } });
       box.append(el('div', { class: 'batch' }, d, n, el('span', { class: 'unit', text: it.unit }), x));
     });
     const actions = el('div', { class: 'q' });
     const ke = knownExp(it);
-    if (ke && !batches[0].exp) actions.append(el('button', { class: 'hint', type: 'button', text: '沿用上次效期 ' + ke, onclick: () => { const d = document.getElementById(`d_${it.id}_0`); d.value = ke; const n = document.getElementById(`n_${it.id}_0`); n && n.focus(); } }));
+    if (!multi && ke && !batches[0].exp) actions.append(el('button', { class: 'hint', type: 'button', text: '沿用上次效期 ' + ke, onclick: () => { const d = document.getElementById(`d_${it.id}_0`); d.value = ke; const n = document.getElementById(`n_${it.id}_0`); n && n.focus(); } }));
     actions.append(el('button', { class: 'addb', type: 'button', text: '＋另一批效期', onclick: () => { const r = readRow(it.id) || { batches: [] }; r.batches.push({ exp: '', qty: null }); S.drafts[it.id] = r; rebuild(it.id); const d = document.getElementById(`d_${it.id}_${r.batches.length - 1}`); d && d.focus(); } }));
     box.append(actions);
     row.append(box);
@@ -405,6 +411,7 @@ function commitRow(id) {
     if (r.batches.some(b => Number.isNaN(b.qty))) return toast(it.name + '：數量只能填數字');
     if (r.batches.some(b => b.exp && b.exp.startsWith('!'))) return toast(it.name + '：效期看不懂，請用 2028.05.03 這種寫法');
     if (r.batches.some(b => b.qty != null && !b.exp)) return toast(it.name + '：有數量但沒填效期');
+    if (multiExp(it) && r.batches.some(b => b.qty != null) && r.batches.some(b => b.exp && b.qty == null)) return toast(it.name + '：每個效期都要填數量，沒有就填 0');
   } else if (Number.isNaN(r.qty)) return toast(it.name + '：數量只能填數字');
   if (sameAsSaved(id, r) && !S.failed[id]) { delete S.drafts[id]; return; }
   S.drafts[id] = r;
@@ -440,7 +447,7 @@ async function save(id, r, ok) {
   finally { delete S.saving[id]; headerInfo(); const row = document.querySelector('#main [data-id="' + id + '"]'); if (row && !row.contains(document.activeElement)) rebuild(id); else refreshMeta(id); }
 }
 
-function focusNext(inp) { const all = [...document.querySelectorAll('#main input')]; const i = all.indexOf(inp); if (i >= 0 && all[i + 1]) all[i + 1].focus(); else inp.blur(); }
+function focusNext(inp) { const all = [...document.querySelectorAll('#main input:not([readonly])')]; const i = all.indexOf(inp); if (i >= 0 && all[i + 1]) all[i + 1].focus(); else inp.blur(); }
 function rebuild(id) { const old = document.querySelector('#main [data-id="' + id + '"]'); if (!old) return null; const n = buildRow(S.items[id]); old.replaceWith(n); return n; }
 function refreshMeta(id) { const row = document.querySelector('#main [data-id="' + id + '"]'); if (!row) return; const m = row.querySelector('.meta'); m && m.replaceWith(metaLine(S.items[id])); }
 
