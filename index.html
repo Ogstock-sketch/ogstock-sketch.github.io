@@ -79,6 +79,7 @@ main{padding-block:12px 120px}
 @keyframes flash{0%{background:var(--ink-soft)}100%{background:var(--surface)}}
 @media (prefers-reduced-motion:reduce){.row.flash{animation:none}.progress i{transition:none}}
 .nm{font-weight:700;font-size:15px;min-width:0}
+.nm .ex{display:inline-block;margin-left:6px;font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap}
 .meta{grid-column:1/-1;font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:-2px}
 .meta .by{color:var(--ok);font-weight:500}
 .meta .remote{color:var(--warn);font-weight:700}
@@ -344,7 +345,9 @@ function metaLine(it) {
 function buildRow(it) {
   const cur = current(it.id); const done = totalOf(S.docs[it.id]) != null;
   const row = el('div', { class: 'row' + (done ? ' done' : '') + (S.failed[it.id] ? ' unsaved' : ''), 'data-id': it.id });
-  row.append(el('div', { class: 'nm', text: it.name }));
+  const nm = el('div', { class: 'nm', text: it.name });
+  if (it.exp && Array.isArray(it.seenExps) && it.seenExps.length) nm.append(el('span', { class: 'ex', text: '效期 ' + it.seenExps.join('、') }));
+  row.append(nm);
   if (!usesBatches(it)) {
     const inp = el('input', { class: 'single', id: 'q_' + it.id, inputmode: 'numeric', enterkeyhint: 'next', autocomplete: 'off', 'aria-label': it.name + ' 數量', value: cur && typeof cur.qty === 'number' ? cur.qty : '' });
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); focusNext(inp); } });
