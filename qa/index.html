@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>橙姑娘客服 QA 查詢</title>
+<title>客服 QA 查詢</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&display=swap" rel="stylesheet">
@@ -83,12 +83,21 @@ kbd{font:12px var(--body);border:1px solid var(--line);border-radius:4px;padding
 .login .err{color:#c0392b;font-size:13px;min-height:1em}
 .logout{all:unset;cursor:pointer;color:var(--muted);font-size:12px;margin:0 8px 12px;text-decoration:underline}
 [hidden]{display:none!important}
+body[data-brand="sa"]{--accent:#2f5d27;--accent-soft:#e3eedf}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) body[data-brand="sa"]{--accent:#7fb069;--accent-soft:#24331f}}
+:root[data-theme="dark"] body[data-brand="sa"]{--accent:#7fb069;--accent-soft:#24331f}
+.brands{display:flex;gap:6px}
+.brands button{font:inherit;font-weight:700;font-size:15px;padding:8px 18px;border-radius:10px;border:1.5px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer}
+.brands button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.brands button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.brandbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.brandnote{font-size:13px;color:var(--accent);font-weight:700}
 </style>
 </head>
 <body>
 <div class="login" id="login">
   <form id="lf">
-    <h1>橙姑娘客服 QA</h1>
+    <h1>客服 QA 查詢</h1>
     <label for="pw" class="status">請輸入查詢密碼</label>
     <input id="pw" type="password" autocomplete="current-password" required>
     <button type="submit" id="lb">進入</button>
@@ -97,13 +106,14 @@ kbd{font:12px var(--body);border:1px solid var(--line);border-radius:4px;padding
 </div>
 <div class="app">
   <aside>
-    <h1>橙姑娘客服 QA</h1>
+    <h1 id="bname">客服 QA</h1>
     <p class="sub" id="meta"></p>
     <button class="logout" id="logout" type="button">登出</button>
     <div class="plist" id="plist" role="list"></div>
   </aside>
   <main>
     <div class="bar">
+      <div class="brandbar"><div class="brands" role="group" aria-label="切換品牌"><button type="button" data-b="og" aria-pressed="false">橙姑娘</button><button type="button" data-b="sa" aria-pressed="false">SASANA</button></div><span class="brandnote" id="bnote"></span></div>
       <div class="mobile-select"><label for="psel" class="status">商品</label><select id="psel"></select></div>
       <div class="search">
         <input id="q" type="search" placeholder="輸入關鍵字搜尋全部商品，例如：便秘、孕婦、退費、素食" autocomplete="off" aria-label="搜尋 QA">
@@ -157,7 +167,7 @@ function renderList(){
   $("psel").innerHTML = products.map(p=>`<option ${p===current?"selected":""}>${esc(p)}</option>`).join("");
 }
 $("psel").onchange=e=>{ current=e.target.value; query=""; $("q").value=""; save(); render(); };
-function save(){ try{localStorage.setItem("qa-product",current);}catch(e){} }
+function save(){ try{localStorage.setItem("qa-product-"+brand,current);}catch(e){} }
 function esc(s){ return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function terms(){
   return query.split(/\s+/).filter(Boolean).map(t=>[t, SYN[t]].filter(Boolean));
@@ -218,7 +228,7 @@ function render(){
   const ts = terms();
   if(ts.length){
     const res = DATA.map(d=>[d,score(d,ts)]).filter(x=>x[1]>=0).sort((a,b)=>b[1]-a[1]);
-    $("status").textContent = `「${query.trim()}」找到 ${res.length} 則（全部商品）`;
+    $("status").textContent = `「${query.trim()}」找到 ${res.length} 則（${BRANDS[brand]} 全部商品）`;
     if(!res.length) box.innerHTML='<p class="empty">找不到相符的問答。試試更短的關鍵字，或從左側選商品瀏覽。</p>';
     res.forEach(([d])=>box.appendChild(card(d,ts,true)));
   } else {
@@ -230,13 +240,28 @@ function render(){
 let t; $("q").addEventListener("input",e=>{ clearTimeout(t); t=setTimeout(()=>{ query=e.target.value; render(); },120); });
 $("clear").onclick=()=>{ query=""; $("q").value=""; render(); $("q").focus(); };
 document.addEventListener("keydown",e=>{ if(e.key==="/" && document.activeElement!==$("q")){ e.preventDefault(); $("q").focus(); } });
-function init(rows){
-  DATA = rows.map(r=>({p:r.p,q:r.q.replace(/\n/g," / "),s:parseAnswer(r.a)}));
-  products = [...new Set(DATA.map(d=>d.p))];
-  current = products[0];
-  try{ const s = localStorage.getItem("qa-product"); if(s && products.includes(s)) current = s; }catch(e){}
+const BRANDS = {og:"橙姑娘", sa:"SASANA"};
+let ALL = {og:[], sa:[]}, brand = "og";
+function toData(rows){ return (rows||[]).map(r=>({p:r.p,q:r.q.replace(/\n/g," / "),s:parseAnswer(r.a)})); }
+function setBrand(b){
+  if(!BRANDS[b]) b="og";
+  brand=b; DATA=ALL[b]; products=[...new Set(DATA.map(d=>d.p))]; current=products[0]||"";
+  try{ const s=localStorage.getItem("qa-product-"+b); if(s && products.includes(s)) current=s; localStorage.setItem("qa-brand",b); }catch(e){}
+  document.body.dataset.brand=b;
+  document.querySelectorAll(".brands button").forEach(x=>x.setAttribute("aria-pressed", String(x.dataset.b===b)));
+  $("bname").textContent = BRANDS[b]+" QA";
+  $("bnote").textContent = "目前：" + BRANDS[b];
   $("meta").textContent = products.length + " 個商品・" + DATA.length + " 則問答";
-  render();
+  const h = b==="sa" ? "#sasana" : "#orange"; if(location.hash!==h) history.replaceState(null,"",h);
+  query=""; $("q").value=""; render();
+}
+document.querySelectorAll(".brands button").forEach(x=>x.onclick=()=>setBrand(x.dataset.b));
+window.addEventListener("hashchange",()=>{ const b = location.hash==="#sasana" ? "sa" : "og"; if(b!==brand) setBrand(b); });
+function init(res){
+  ALL = {og:toData(res.og), sa:toData(res.sa)};
+  let b = location.hash==="#sasana" ? "sa" : location.hash==="#orange" ? "og" : "";
+  if(!b){ try{ b=localStorage.getItem("qa-brand")||"og"; }catch(e){ b="og"; } }
+  setBrand(b);
 }
 const API = "https://script.google.com/macros/s/AKfycbyKxypJDyhIPgNpZc-XGtv6mcFonfBYzCAg4DOspgyRoE_RsClZjf2tgkHJ2Lajjyr7Tg/exec";
 function load(pw){
@@ -247,7 +272,7 @@ function load(pw){
       $("lb").disabled=false;
       if(!res.ok){ $("err").textContent="密碼錯誤，請再試一次"; try{localStorage.removeItem("qa-pw");}catch(e){} $("login").hidden=false; return; }
       try{localStorage.setItem("qa-pw",pw);}catch(e){}
-      $("err").textContent=""; $("login").hidden=true; init(res.rows);
+      $("err").textContent=""; $("login").hidden=true; init(res);
     })
     .catch(()=>{ $("lb").disabled=false; $("err").textContent="連線失敗，請檢查網路後再試一次"; $("login").hidden=false; });
 }
